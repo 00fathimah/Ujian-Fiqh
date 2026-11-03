@@ -38,12 +38,19 @@ html, body, [class*="css"] {
     color: #f1f5f9;
 }
 
-/* تنسيق القائمة الجانبية */
+/* تنسيق القائمة الجانبية وإصلاح مشكلة الشاشات الصغيرة (الجوال) */
 section[data-testid="stSidebar"] {
     background-color: #111827 !important;
     border-left: 1px solid #1f2937;
     direction: rtl;
     text-align: right;
+}
+
+section[data-testid="stSidebar"][aria-expanded="false"] {
+    display: none !important;
+    width: 0px !important;
+    min-width: 0px !important;
+    overflow: hidden !important;
 }
 
 /* البطاقات والحاويات الأكاديمية */
