@@ -1,8 +1,6 @@
 import streamlit as st
 import re
 import random
-import json
-from io import BytesIO
 
 # محاولة استيراد مكتبات قراءة الـ PDF
 try:
@@ -12,45 +10,44 @@ except ImportError:
     PDF_LIB = None
 
 # ==========================================
-# 1. إعدادات الصفحة والتصميم بالوضع الداكن (Dark Mode & RTL)
+# 1. إعدادات الصفحة والتصميم المتجاوب مع الجوال (Dark Mode & Mobile RTL Fix)
 # ==========================================
 st.set_page_config(
     page_title="منصة تحقيق ودراسة شرح عمدة الفقه",
     page_icon="⚖️",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 CUSTOM_CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Tajawal:wght@400;500;700;800&display=swap');
 
-html, body, [class*="css"] {
-    direction: rtl;
-    text-align: right;
-    font-family: 'Tajawal', sans-serif;
-    background-color: #0b0f19;
-    color: #e2e8f0;
-}
-
 .stApp {
     background-color: #0b0f19;
     color: #f1f5f9;
-}
-
-/* تنسيق القائمة الجانبية وإصلاح مشكلة الشاشات الصغيرة (الجوال) */
-section[data-testid="stSidebar"] {
-    background-color: #111827 !important;
-    border-left: 1px solid #1f2937;
     direction: rtl;
     text-align: right;
+    font-family: 'Tajawal', sans-serif;
 }
 
+/* إخفاء القائمة الجانبية تماماً عند إغلاقها لمنع تداخل النصوص في الجوال */
 section[data-testid="stSidebar"][aria-expanded="false"] {
     display: none !important;
-    width: 0px !important;
-    min-width: 0px !important;
+    width: 0 !important;
+    min-width: 0 !important;
     overflow: hidden !important;
+}
+
+/* ترويسة المنصة العلوية المتجاوبة */
+.hero-header {
+    background: linear-gradient(135deg, #111827 0%, #1e293b 100%);
+    border: 1px solid #334155;
+    border-right: 5px solid #10b981;
+    border-radius: 14px;
+    padding: 18px 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.35);
 }
 
 /* البطاقات والحاويات الأكاديمية */
@@ -66,7 +63,7 @@ section[data-testid="stSidebar"][aria-expanded="false"] {
 
 .matn-box {
     font-family: 'Amiri', serif;
-    font-size: 1.35rem;
+    font-size: 1.3rem;
     line-height: 2.0;
     background-color: #1e293b;
     color: #fbbf24;
@@ -111,7 +108,7 @@ section[data-testid="stSidebar"][aria-expanded="false"] {
     border: 2px solid #334155;
     border-radius: 16px;
     padding: 35px 25px;
-    min-height: 260px;
+    min-height: 250px;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -123,7 +120,7 @@ section[data-testid="stSidebar"][aria-expanded="false"] {
 
 .flashcard-front {
     font-family: 'Amiri', serif;
-    font-size: 1.6rem;
+    font-size: 1.55rem;
     color: #38bdf8;
     font-weight: bold;
 }
@@ -173,7 +170,6 @@ st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # ==========================================
 # 2. قاعدة البيانات العلمية المحققة من الكتاب المرفق
-# (شرح عمدة الفقه - د. عبد الله بن جبرين: من سجود السهو إلى الزكاة)
 # ==========================================
 CORE_FIQH_DATABASE = [
     {
@@ -422,7 +418,6 @@ FLASHCARDS_DATA = [
 # 4. محرك تحليل الـ PDF وتوليد الأسئلة اللانهائية
 # ==========================================
 def extract_issues_from_pdf(uploaded_file):
-    """استخراج المسائل الفقهية من ملف PDF مرفوع وتحويلها إلى كائنات معرفية"""
     extracted_issues = []
     if PDF_LIB is None:
         return extracted_issues, "مكتبة PyPDF2 غير مثبتة، يعمل النظام حالياً بقاعدة البيانات المدمجة."
@@ -434,17 +429,14 @@ def extract_issues_from_pdf(uploaded_file):
             page_text = page.extract_text() or ""
             full_text += f"\n[صفحة {idx+1}]\n" + page_text
 
-        # البحث عن المسائل المرقمة مثل: ٤٠٧ - (...) أو 407 - (...)
         pattern = re.compile(r'([٤٥٦٧4567][٠-٩0-9]{2})\s*-\s*([^\n]+(?:\n(?![٤٥٦٧4567][٠-٩0-9]{2}\s*-)[^\n]+)*)')
         matches = pattern.findall(full_text)
 
         for issue_num, body in matches:
             clean_body = re.sub(r'\s+', ' ', body).strip()
-            # استخراج المتن بين القوسين إن وجد
             matn_match = re.search(r'\(([^)]+)\)', clean_body)
             matn_text = f"({matn_match.group(1)})" if matn_match else clean_body[:140] + "..."
 
-            # رصد الترجيح الفقهي في النص
             tarjih_match = re.search(r'(وذهب بعض أهل العلم[^.]+(?:\.[^.]+)*?الأقرب[^.]*\.)', clean_body)
             tarjih_text = tarjih_match.group(1) if tarjih_match else "وافق الشارحُ المتنَ في أصل الحكم مع تحرير الدليل والتعليل."
 
@@ -468,7 +460,6 @@ def extract_issues_from_pdf(uploaded_file):
 
 
 def generate_infinite_question(knowledge_pool, chapter_filter="الكل"):
-    """توليد سؤال أكاديمي متقدم عشوائي من قاعدة المعرفة مع التركيز على المتن والترجيح والعلة"""
     filtered_pool = [
         item for item in knowledge_pool
         if chapter_filter == "الكل" or chapter_filter in item["chapter"]
@@ -547,7 +538,6 @@ def generate_infinite_question(knowledge_pool, chapter_filter="الكل"):
 # 5. دوال حاسبة الزكاة الشرعية الشاملة
 # ==========================================
 def calculate_camel_zakat(count):
-    """حساب زكاة الإبل السائمة بدقة وفق متن العمدة وشرح ابن جبرين (ص 483-487)"""
     if count < 5:
         return "لا زكاة فيها (أقل من النصاب وهو 5 من الإبل بالإجماع).", "وقص دون النصاب"
     elif count <= 9:
@@ -573,7 +563,6 @@ def calculate_camel_zakat(count):
     elif count <= 129:
         return "ثلاث بنات لبون (من 121 إلى 129).", f"الوقص: {count - 121} رأساً"
     else:
-        # قاعدة ما زاد على 120: في كل خمسين حقة وفي كل أربعين بنت لبون
         tens = count // 10
         possible = []
         for huqqa in range((tens // 5) + 1):
@@ -588,17 +577,15 @@ def calculate_camel_zakat(count):
                 possible.append(" و ".join(parts))
         if possible:
             if len(possible) > 1:
-                return f"يجتمع الفرضان فيخيّر المالك بين: ({' أو '.join(possible)}).", f"قاعدة: في كل 50 حقة وفي كل 40 بنت لبون"
+                return f"يجتمع الفرضان فيخيّر المالك بين: ({' أو '.join(possible)}).", "قاعدة: في كل 50 حقة وفي كل 40 بنت لبون"
             return possible[0], "قاعدة: في كل 50 حقة وفي كل 40 بنت لبون"
         else:
-            # تقريب لأدنى عشر مطابق للقاعدة
             h = tens // 5
             b = (tens % 5) // 4
-            return f"يُحسب على العقود: {h} حقة و {b} بنت لبون (مع مراعاة استغراق العقود بالخمسينات والأربعينات).", "ما زاد على 120"
+            return f"يُحسب على العقود: {h} حقة و {b} بنت لبون.", "ما زاد على 120"
 
 
 def calculate_cattle_zakat(count):
-    """حساب زكاة البقر والجواميس السائمة (ص 487-488)"""
     if count < 30:
         return "لا زكاة فيها حتى تبلغ ثلاثين بالإجماع."
     elif count < 40:
@@ -624,13 +611,12 @@ def calculate_cattle_zakat(count):
 
 
 def calculate_sheep_zakat(count):
-    """حساب زكاة الغنم (الضأن والمعز) السائمة (ص 489)"""
     if count < 40:
         return "لا زكاة فيها حتى تبلغ أربعين شاة بالإجماع."
     elif count <= 120:
         return "شاة واحدة (من 40 إلى 120)."
     elif count <= 200:
-        return "شاتان (من 121 إلى 200)."
+        return "شاتان (من 201 إلى 200)."
     elif count <= 399:
         return "ثلاث شياه (من 201 إلى 399)."
     else:
@@ -659,32 +645,41 @@ if "mastered_cards" not in st.session_state:
     st.session_state.mastered_cards = set()
 
 # ==========================================
-# 7. القائمة الجانبية والترويسة الرئيسية
+# 7. الترويسة وشريط التنقل العلوي المتجاوب مع الجوال
 # ==========================================
-with st.sidebar:
-    st.markdown("## ⚖️ منصة عمدة الفقه الأكاديمية")
-    st.caption("شرح عمدة الفقه - الشيخ د. عبد الله بن جبرين (من باب سجود السهو إلى نهاية كتاب الزكاة)")
-    st.markdown("---")
-    nav_tab = st.radio(
-        "اختر القسم العلمي:",
-        [
-            "📚 محرك الـ PDF والموسوعة المحققة",
-            "♾️ الاختبارات اللانهائية والترجيح الفقهي",
-            "🗂️ البطاقات التعليمية الذكية (Flashcards)",
-            "🧮 حاسبة الزكاة الموضوعية الشرعية"
-        ]
-    )
-    st.markdown("---")
-    st.markdown("### 📊 إحصائيات المراجعة")
-    st.metric("المسائل المحمّلة في المحرك", len(st.session_state.knowledge_base))
-    st.metric("الأسئلة المجابة", f"{st.session_state.quiz_score} / {st.session_state.quiz_total}")
-    st.metric("البطاقات المتقنة", f"{len(st.session_state.mastered_cards)} / {len(FLASHCARDS_DATA)}")
+st.markdown("""
+<div class="hero-header">
+    <h2 style="margin:0; color:#10b981;">⚖️ منصة عمدة الفقه الأكاديمية</h2>
+    <p style="margin:6px 0 0 0; color:#cbd5e1; font-size:0.95rem;">
+        شرح عمدة الفقه — الشيخ د. عبد الله بن عبد الرحمن بن جبرين (من باب سجود السهو إلى نهاية كتاب الزكاة)
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
+m_col1, m_col2, m_col3 = st.columns(3)
+with m_col1:
+    st.metric("📚 المسائل المحمّلة", len(st.session_state.knowledge_base))
+with m_col2:
+    st.metric("✅ نتيجة الاختبار", f"{st.session_state.quiz_score} / {st.session_state.quiz_total}")
+with m_col3:
+    st.metric("🗂️ البطاقات المتقنة", f"{len(st.session_state.mastered_cards)} / {len(FLASHCARDS_DATA)}")
+
+nav_tab = st.selectbox(
+    "🧭 اختر القسم العلمي:",
+    [
+        "📚 محرك الـ PDF والموسوعة المحققة",
+        "♾️ الاختبارات اللانهائية والترجيح الفقهي",
+        "🗂️ البطاقات التعليمية الذكية (Flashcards)",
+        "🧮 حاسبة الزكاة الموضوعية الشرعية"
+    ]
+)
+st.markdown("---")
 
 # ==========================================
 # القسم الأول: محرك رفع الـ PDF والموسوعة الفقهية
 # ==========================================
 if nav_tab == "📚 محرك الـ PDF والموسوعة المحققة":
-    st.title("📚 محرك رفع ملفات الـ PDF وقاعدة المعرفة الفقهية")
+    st.subheader("📚 محرك رفع ملفات الـ PDF وقاعدة المعرفة الفقهية")
     st.markdown(
         "يتيح هذا المحرك رفع ملف **«شرح عمدة الفقه»** بصيغة PDF لاستخراج المسائل الفقهية آلياً، "
         "كما يحتوي مسبقاً على التحقيق الكامل للمسائل المحورية من **باب سجود السهو (ص 327)** إلى **نهاية كتاب الزكاة (ص 522)**."
@@ -757,27 +752,22 @@ if nav_tab == "📚 محرك الـ PDF والموسوعة المحققة":
 # القسم الثاني: مولد الاختبارات اللانهائية والترجيح الفقهي
 # ==========================================
 elif nav_tab == "♾️ الاختبارات اللانهائية والترجيح الفقهي":
-    st.title("♾️ مولد الاختبارات الأكاديمية اللانهائية (Infinite Fiqh Quiz)")
+    st.subheader("♾️ مولد الاختبارات الأكاديمية اللانهائية (Infinite Fiqh Quiz)")
     st.markdown(
         "يولّد هذا القسم أسئلة اختيار من متعدد لا نهائية تعتمد على **النصوص العربية الأصلية** من الكتاب، "
         "وتختبر القدرة على التفريق بين **تقرير المتن** و**ترجيح الشارح (وهذا هو الأقرب)** مع **علة الحكم**."
     )
 
-    q_col1, q_col2 = st.columns([2, 1])
-    with q_col1:
-        quiz_chap = st.selectbox(
-            "اختر نطاق الاختبار:",
-            ["الكل", "باب سجود السهو", "باب صلاة التطوع", "باب الساعات التي نهي عن الصلاة فيها",
-             "باب الإمامة", "باب صلاة المريض", "باب صلاة المسافر", "باب صلاة الجمعة",
-             "باب صلاة العيدين", "كتاب الجنائز", "كتاب الزكاة"]
-        )
-    with q_col2:
-        st.write("")
-        st.write("")
-        if st.button("🔄 توليد سؤال جديد فوراً"):
-            st.session_state.current_quiz = generate_infinite_question(st.session_state.knowledge_base, quiz_chap)
-            st.session_state.answer_submitted = False
-            st.rerun()
+    quiz_chap = st.selectbox(
+        "اختر نطاق الاختبار:",
+        ["الكل", "باب سجود السهو", "باب صلاة التطوع", "باب الساعات التي نهي عن الصلاة فيها",
+         "باب الإمامة", "باب صلاة المريض", "باب صلاة المسافر", "باب صلاة الجمعة",
+         "باب صلاة العيدين", "كتاب الجنائز", "كتاب الزكاة"]
+    )
+    if st.button("🔄 توليد سؤال جديد فوراً"):
+        st.session_state.current_quiz = generate_infinite_question(st.session_state.knowledge_base, quiz_chap)
+        st.session_state.answer_submitted = False
+        st.rerun()
 
     q_data = st.session_state.current_quiz
     issue = q_data["issue_obj"]
@@ -793,13 +783,12 @@ elif nav_tab == "♾️ الاختبارات اللانهائية والترجي
 
     user_choice = st.radio("اختر الإجابة الدقيقة:", q_data["options"], key=f"q_{st.session_state.quiz_total}_{issue['id']}")
 
-    btn_col1, btn_col2 = st.columns([1, 1])
-    with btn_col1:
-        if st.button("✅ اعتماد الإجابة وعرض التحليل الفقهي", disabled=st.session_state.answer_submitted):
-            st.session_state.answer_submitted = True
-            st.session_state.quiz_total += 1
-            if user_choice == q_data["answer"]:
-                st.session_state.quiz_score += 1
+    if st.button("✅ اعتماد الإجابة وعرض التحليل الفقهي", disabled=st.session_state.answer_submitted):
+        st.session_state.answer_submitted = True
+        st.session_state.quiz_total += 1
+        if user_choice == q_data["answer"]:
+            st.session_state.quiz_score += 1
+        st.rerun()
 
     if st.session_state.answer_submitted:
         if user_choice == q_data["answer"]:
@@ -828,7 +817,7 @@ elif nav_tab == "♾️ الاختبارات اللانهائية والترجي
 # القسم الثالث: البطاقات التعليمية الذكية (Smart Flashcards)
 # ==========================================
 elif nav_tab == "🗂️ البطاقات التعليمية الذكية (Flashcards)":
-    st.title("🗂️ البطاقات التعليمية الذكية لحفظ الضوابط والشروط")
+    st.subheader("🗂️ البطاقات التعليمية الذكية لحفظ الضوابط والشروط")
     st.markdown("بطاقات تفاعلية لمراجعة المصطلحات الفقهية، والفروق الدقيقة، والشروط، والنصوص الأصلية من الكتاب.")
 
     fc_categories = ["الكل"] + sorted(list(set(c["category"] for c in FLASHCARDS_DATA)))
@@ -860,21 +849,19 @@ elif nav_tab == "🗂️ البطاقات التعليمية الذكية (Flash
         </div>
         """, unsafe_allow_html=True)
 
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2 = st.columns(2)
     with c1:
+        if st.button("🔄 اقلب البطاقة (إظهار/إخفاء)"):
+            st.session_state.flashcard_flipped = not st.session_state.flashcard_flipped
+            st.rerun()
         if st.button("⏮️ البطاقة السابقة"):
             st.session_state.flashcard_idx = (idx - 1) % len(active_cards)
             st.session_state.flashcard_flipped = False
             st.rerun()
     with c2:
-        if st.button("🔄 اقلب البطاقة (إظهار/إخفاء)"):
-            st.session_state.flashcard_flipped = not st.session_state.flashcard_flipped
-            st.rerun()
-    with c3:
         if st.button("✅ أتقنت هذه البطاقة"):
             st.session_state.mastered_cards.add(current_card["term"])
             st.toast("تمت إضافتها إلى البطاقات المتقنة!")
-    with c4:
         if st.button("⏭️ البطاقة التالية"):
             st.session_state.flashcard_idx = (idx + 1) % len(active_cards)
             st.session_state.flashcard_flipped = False
@@ -884,246 +871,162 @@ elif nav_tab == "🗂️ البطاقات التعليمية الذكية (Flash
 # القسم الرابع: حاسبة الزكاة الموضوعية الشرعية
 # ==========================================
 elif nav_tab == "🧮 حاسبة الزكاة الموضوعية الشرعية":
-    st.title("🧮 حاسبة الزكاة الموضوعية الشرعية المقارنة")
+    st.subheader("🧮 حاسبة الزكاة الموضوعية الشرعية المقارنة")
     st.markdown(
         "حاسبة فقهية متقدمة مبنية على **كتاب الزكاة من شرح عمدة الفقه (ص 473 - 522)**؛ "
-        "لا تكتفي بالحساب الرقمي، بل تعرض **النصاب الشرعي، الدليل، الخلاف الفقهي، والترجيح المعتمد في الكتاب**."
+        "تعرض **النصاب الشرعي، الدليل، الخلاف الفقهي، والترجيح المعتمد في الكتاب**."
     )
 
     zakat_tabs = st.tabs([
-        "🐪 1. زكاة السائمة (الإبل والبقر والغنم)",
-        "🌾 2. زكاة الخارج من الأرض (الحبوب والمعادن والركاز)",
-        "🪙 3. زكاة الأثمان والحلي والعملات",
-        "🏪 4. زكاة عروض التجارة والدين والصداق"
+        "🐪 1. السائمة",
+        "🌾 2. الخارج من الأرض",
+        "🪙 3. الأثمان والحلي",
+        "🏪 4. التجارة والدين"
     ])
 
-    # --- تبويب 1: زكاة السائمة ---
     with zakat_tabs[0]:
-        st.subheader("أحكام وحساب زكاة بهيمة الأنعام السائمة")
-        st.markdown("""
-        <div class="summary-box">
-            <b>📌 الشروط العامة في الكتاب (ص 482-495):</b>
-            <ul>
-                <li><b>السَّوم:</b> أن ترعى من العشب المباح الذي لم يزرعه الإنسان الحول كاملاً أو أكثر الحول.</li>
-                <li><b>الوقص:</b> ما بين النصابين في السائمة لا تجب فيه الزكاة بالإجماع.</li>
-                <li><b>الخلطة:</b> إذا اختلط جماعة في نصاب سائمة حولاً كاملاً (مرعاهم ومحلهم ومبيتهم ومحلبهم ومشربهم وفحلهم واحد) فحكم زكاتهم حكم زكاة الواحد، ولا تؤثر الخلطة إلا في السائمة.</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("#### أحكام وحساب زكاة بهيمة الأنعام السائمة")
+        animal_type = st.selectbox("اختر نوع بهيمة الأنعام السائمة:", ["الإبل", "البقر (ويشمل الجواميس بالإجماع)", "الغنم (الضأن والمعز)"])
+        animal_count = st.number_input("أدخل عدد الرؤوس السائمة التي حال عليها الحول:", min_value=0, max_value=5000, value=25, step=1)
+        is_missing_age = st.checkbox("هل عُدمت السن الواجبة في الإبل عند المالك؟ (حساب الجبران)")
 
-        s_col1, s_col2 = st.columns(2)
-        with s_col1:
-            animal_type = st.selectbox("اختر نوع بهيمة الأنعام السائمة:", ["الإبل", "البقر (ويشمل الجواميس بالإجماع)", "الغنم (الضأن والمعز)"])
-            animal_count = st.number_input("أدخل عدد الرؤوس السائمة التي حال عليها الحول:", min_value=0, max_value=5000, value=25, step=1)
-            is_missing_age = st.checkbox("هل عُدمت السن الواجبة في الإبل عند المالك؟ (حساب الجبران)")
-
-        with s_col2:
-            if animal_type == "الإبل":
-                ruling_str, waqs_str = calculate_camel_zakat(animal_count)
-                st.markdown(f"""
-                <div class="tarjih-box">
-                    <h4>🐪 الواجب في ({animal_count}) من الإبل:</h4>
-                    <p style="font-size:1.2rem; font-weight:bold; color:#fbbf24;">{ruling_str}</p>
-                    <p><b>حكم الوقص والقاعدة:</b> {waqs_str}</p>
+        if animal_type == "الإبل":
+            ruling_str, waqs_str = calculate_camel_zakat(animal_count)
+            st.markdown(f"""
+            <div class="tarjih-box">
+                <h4>🐪 الواجب في ({animal_count}) من الإبل:</h4>
+                <p style="font-size:1.2rem; font-weight:bold; color:#fbbf24;">{ruling_str}</p>
+                <p><b>حكم الوقص والقاعدة:</b> {waqs_str}</p>
+            </div>
+            """, unsafe_allow_html=True)
+            if is_missing_age and animal_count >= 25:
+                st.markdown("""
+                <div class="illa-box">
+                    <b>⚖️ حكم الجبران في الإبل (المسألتان 708-709، ص 486):</b><br>
+                    من وجبت عليه سن فلم يجدها يخرج أدنى منها ويدفع معها شاتين أو عشرين درهماً، أو يخرج أعلى منها ويأخذ من الساعي شاتين أو عشرين درهماً.
                 </div>
                 """, unsafe_allow_html=True)
-                if is_missing_age and animal_count >= 25:
-                    st.markdown("""
-                    <div class="illa-box">
-                        <b>⚖️ حكم الجبران في الإبل (المسألتان 708-709، ص 486):</b><br>
-                        من وجبت عليه سن فلم يجدها:
-                        <ol>
-                            <li>إما أن يخرج <b>أدنى منها</b> ويدفع معها <b>شاتين أو عشرين درهماً</b> (والأقرب عند ابن عثيمين كما نقل الشارح أن العشرين درهماً تقويم لقيمة الشاتين في عهد النبي ﷺ).</li>
-                            <li>وإما أن يخرج <b>أعلى منها</b> ويأخذ من الساعي شاتين أو عشرين درهماً.</li>
-                        </ol>
-                        <i>ملاحظة: استثنى المتن (بنت مخاض) إذا عدمها فيخرج (ابن لبون) بلا جبران لظاهر الحديث.</i>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-            elif "البقر" in animal_type:
-                ruling_str = calculate_cattle_zakat(animal_count)
-                st.markdown(f"""
-                <div class="tarjih-box">
-                    <h4>🐄 الواجب في ({animal_count}) من البقر:</h4>
-                    <p style="font-size:1.2rem; font-weight:bold; color:#fbbf24;">{ruling_str}</p>
-                    <p><b>الدليل:</b> حديث معاذ رضي الله عنه أن النبي ﷺ أمره أن يأخذ من كل ثلاثين من البقر تبيعاً أو تبيعة، ومن كل أربعين مسنة (ص 488).</p>
-                </div>
-                """, unsafe_allow_html=True)
-
-            else:
-                ruling_str = calculate_sheep_zakat(animal_count)
-                st.markdown(f"""
-                <div class="tarjih-box">
-                    <h4>🐑 الواجب في ({animal_count}) من الغنم:</h4>
-                    <p style="font-size:1.2rem; font-weight:bold; color:#fbbf24;">{ruling_str}</p>
-                    <p><b>ضابط المخرج (ص 490-492):</b> يخرج جذعة من الضأن أو ثنية من المعز، ولا يؤخذ تيس ولا ذات عوار ولا هرمة، ولا تؤخذ الربي والماخض والأكولة وكرائم المال إلا أن يتبرع بها أرباب المال.</p>
-                </div>
-                """, unsafe_allow_html=True)
-
-    # --- تبويب 2: زكاة الخارج من الأرض ---
-    with zakat_tabs[1]:
-        st.subheader("زكاة الحبوب والثمار والمعادن والركاز (ص 496-505)")
-        earth_type = st.radio(
-            "اختر نوع الخارج من الأرض:",
-            ["الحبوب والثمار (مما يكال ويدخر)", "المعادن المستخرجة من الأرض", "الركاز (دفن الجاهلية)"],
-            horizontal=True
-        )
-
-        if "الحبوب" in earth_type:
-            e_col1, e_col2 = st.columns(2)
-            with e_col1:
-                crop_weight_kg = st.number_input("أدخل وزن المحصول المصفى/اليابس بالكيلوجرام (كجم):", min_value=0.0, value=1000.0, step=50.0)
-                irrigation = st.selectbox(
-                    "طريقة السقي:",
-                    [
-                        "بغير مؤونة ولا كلفة (بالأمطار والسيوح أو بعروقه) - يجب العشر (10%)",
-                        "بكلفة ومؤونة (بالدوالي والنواضح والمكائن والآبار) - يجب نصف العشر (5%)",
-                        "نصف العام بمؤونة ونصفه بلا مؤونة - يجب ثلاثة أرباع العشر (7.5%)"
-                    ]
-                )
-            with e_col2:
-                NISAB_KG = 612.0  # كما حرره الشارح في المسألة 750 ص 499
-                if crop_weight_kg < NISAB_KG:
-                    st.warning(f"⚠️ المحصول ({crop_weight_kg} كجم) أقل من النصاب الشرعي وهو خمسة أوسق (300 صاع = نحو {NISAB_KG} كجم من البر المتوسط)، فلا زكاة فيه.")
-                else:
-                    if "10%" in irrigation:
-                        rate = 0.10
-                    elif "5%" in irrigation:
-                        rate = 0.05
-                    else:
-                        rate = 0.075
-                    zakat_due = crop_weight_kg * rate
-                    st.markdown(f"""
-                    <div class="tarjih-box">
-                        <h4>🌾 مقدار الزكاة الواجبة في المحصول:</h4>
-                        <p style="font-size:1.35rem; font-weight:bold; color:#fbbf24;">{zakat_due:,.2f} كجم ({rate*100:.1f}%)</p>
-                        <p><b>النصاب المحقق في الكتاب (ص 498-499):</b> 5 أوسق × 60 صاعاً = 300 صاع نبوي ≈ <b>612 كجم</b> من البر المتوسط.</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-            st.markdown("""
-            <div class="illa-box">
-                <b>⚖️ الضوابط والترجيحات الفقهية في الحبوب والثمار (ص 496-503):</b>
-                <ul>
-                    <li><b>شرط الوجوب:</b> كل حب وثمر يجمع وصفين: (يكال، ويدخر)، فلا زكاة في الخضروات والفواكه التي لا تدخر.</li>
-                    <li><b>وقت الوجوب والاستقرار:</b> تجب إذا بدا الصلاح في الثمار واشتد الحب، ولا يستقر الوجوب إلا بجعلها في البيدر (موضع التجفيف).</li>
-                    <li><b>عدم ضم الأجناس (المسألة 758):</b> لا يضم صنف من الحب والثمر إلى غيره في تكميل النصاب (كالبر إلى الشعير)، وذكر الشارح قول ابن تيمية بضم القمح والشعير والسلت، ثم قال: <b>«والأقرب قول الجمهور؛ لأنه يجوز التفاضل بين هذه الأصناف في البيع فدل على أنها أصناف مختلفة»</b> (ص 503). أما أنواع الصنف الواحد كالتمور (السكري والبرحي) فتضم بالإجماع.</li>
-                </ul>
+        elif "البقر" in animal_type:
+            ruling_str = calculate_cattle_zakat(animal_count)
+            st.markdown(f"""
+            <div class="tarjih-box">
+                <h4>🐄 الواجب في ({animal_count}) من البقر:</h4>
+                <p style="font-size:1.2rem; font-weight:bold; color:#fbbf24;">{ruling_str}</p>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            ruling_str = calculate_sheep_zakat(animal_count)
+            st.markdown(f"""
+            <div class="tarjih-box">
+                <h4>🐑 الواجب في ({animal_count}) من الغنم:</h4>
+                <p style="font-size:1.2rem; font-weight:bold; color:#fbbf24;">{ruling_str}</p>
             </div>
             """, unsafe_allow_html=True)
 
+    with zakat_tabs[1]:
+        st.markdown("#### زكاة الحبوب والثمار والمعادن والركاز (ص 496-505)")
+        earth_type = st.radio(
+            "اختر نوع الخارج من الأرض:",
+            ["الحبوب والثمار (مما يكال ويدخر)", "المعادن المستخرجة من الأرض", "الركاز (دفن الجاهلية)"]
+        )
+
+        if "الحبوب" in earth_type:
+            crop_weight_kg = st.number_input("أدخل وزن المحصول المصفى/اليابس بالكيلوجرام (كجم):", min_value=0.0, value=1000.0, step=50.0)
+            irrigation = st.selectbox(
+                "طريقة السقي:",
+                [
+                    "بغير مؤونة ولا كلفة (بالأمطار والسيوح أو بعروقه) - يجب العشر (10%)",
+                    "بكلفة ومؤونة (بالدوالي والنواضح والمكائن والآبار) - يجب نصف العشر (5%)",
+                    "نصف العام بمؤونة ونصفه بلا مؤونة - يجب ثلاثة أرباع العشر (7.5%)"
+                ]
+            )
+            NISAB_KG = 612.0
+            if crop_weight_kg < NISAB_KG:
+                st.warning(f"⚠️ المحصول ({crop_weight_kg} كجم) أقل من النصاب الشرعي (300 صاع ≈ {NISAB_KG} كجم من البر المتوسط)، فلا زكاة فيه.")
+            else:
+                rate = 0.10 if "10%" in irrigation else (0.05 if "5%" in irrigation else 0.075)
+                zakat_due = crop_weight_kg * rate
+                st.markdown(f"""
+                <div class="tarjih-box">
+                    <h4>🌾 مقدار الزكاة الواجبة في المحصول:</h4>
+                    <p style="font-size:1.35rem; font-weight:bold; color:#fbbf24;">{zakat_due:,.2f} كجم ({rate*100:.1f}%)</p>
+                </div>
+                """, unsafe_allow_html=True)
         elif "المعادن" in earth_type:
             metal_val = st.number_input("أدخل قيمة المعدن المستخرج بعد تصفيته:", min_value=0.0, value=50000.0, step=1000.0)
             nisab_val = st.number_input("أدخل قيمة نصاب الذهب (85 جراماً) أو الفضة (595 جراماً) بعملتك:", min_value=1.0, value=25000.0, step=500.0)
             if metal_val >= nisab_val:
-                st.success(f"✅ بلغ النصاب، والواجب إخراج ربع العشر (2.5%) فوراً عند استخراجه دون اشتراط حول = **{metal_val * 0.025:,.2f}**")
+                st.success(f"✅ بلغ النصاب، والواجب إخراج ربع العشر (2.5%) فوراً = **{metal_val * 0.025:,.2f}**")
             else:
-                st.warning("لم يبلغ قيمة نصاب الذهب أو الفضة فلا زكاة فيه (المسألة 763-764، ص 504).")
-
+                st.warning("لم يبلغ قيمة نصاب الذهب أو الفضة فلا زكاة فيه.")
         else:
             rikaz_val = st.number_input("أدخل قيمة الركاز (دفن الجاهلية) المستخرج:", min_value=0.0, value=10000.0, step=500.0)
             st.markdown(f"""
             <div class="tarjih-box">
                 <h4>🏺 الواجب في الركاز (المسألة 765، ص 505):</h4>
                 <p style="font-size:1.3rem; font-weight:bold; color:#fbbf24;">الخُمس (20%) = {rikaz_val * 0.20:,.2f}</p>
-                <p><b>الأحكام الخاصة بالركاز:</b> يجب الخمس في قليله وكثيره (لا يشترط له نصاب ولا حول)، لحديث: «وفي الركاز الخمس» متفق عليه، ومصرفه مصرف الفيء للمصالح العامة، وباقيه (80%) لواجده.</p>
             </div>
             """, unsafe_allow_html=True)
 
-    # --- تبويب 3: زكاة الأثمان والحلي ---
     with zakat_tabs[2]:
-        st.subheader("زكاة الذهب والفضة والعملات النقدية والحلي (ص 506-515)")
-        m_col1, m_col2 = st.columns(2)
-        with m_col1:
-            gold_grams = st.number_input("وزن الذهب المملوك (بالجرام - عيار 24 أو ما يعادله من الصافي):", min_value=0.0, value=50.0, step=5.0)
-            silver_grams = st.number_input("وزن الفضة المملوكة (بالجرام):", min_value=0.0, value=300.0, step=50.0)
-            gold_price = st.number_input("سعر جرام الذهب الحالي:", min_value=1.0, value=320.0, step=5.0)
-            silver_price = st.number_input("سعر جرام الفضة الحالي:", min_value=0.1, value=3.8, step=0.2)
-            jewelry_grams = st.number_input("وزن حلي المرأة المباح المعد للبس أو العارية (بالجرام):", min_value=0.0, value=120.0, step=10.0)
+        st.markdown("#### زكاة الذهب والفضة والعملات النقدية والحلي (ص 506-515)")
+        gold_grams = st.number_input("وزن الذهب المملوك (بالجرام الصافي):", min_value=0.0, value=50.0, step=5.0)
+        silver_grams = st.number_input("وزن الفضة المملوكة (بالجرام):", min_value=0.0, value=300.0, step=50.0)
+        gold_price = st.number_input("سعر جرام الذهب الحالي:", min_value=1.0, value=320.0, step=5.0)
+        silver_price = st.number_input("سعر جرام الفضة الحالي:", min_value=0.1, value=3.8, step=0.2)
 
-        with m_col2:
-            GOLD_NISAB = 85.0    # 20 مثقالاً = 85 جراماً تقريباً (ص 507)
-            SILVER_NISAB = 595.0 # 200 درهم = 595 جراماً تقريباً (ص 506)
+        GOLD_NISAB = 85.0
+        SILVER_NISAB = 595.0
+        gold_ratio = gold_grams / GOLD_NISAB
+        silver_ratio = silver_grams / SILVER_NISAB
 
-            gold_ratio = gold_grams / GOLD_NISAB
-            silver_ratio = silver_grams / SILVER_NISAB
+        if (gold_ratio + silver_ratio) >= 1.0:
+            total_val_matn = (gold_grams * gold_price) + (silver_grams * silver_price)
+            matn_res = f"تجب الزكاة بضم أحدهما للآخر (2.5%) = **{total_val_matn * 0.025:,.2f}**"
+        else:
+            matn_res = "لا تجب الزكاة لأن مجموعهما لم يبلغ نصاباً حتى بعد الضم."
 
-            st.markdown("#### 📊 مقارنة الحكم بين المتن وترجيح الشارح:")
+        sharh_parts = []
+        if gold_grams >= GOLD_NISAB:
+            sharh_parts.append(f"تجب في الذهب وحده: **{gold_grams * 0.025:.2f} جرام**")
+        else:
+            sharh_parts.append(f"لا زكاة في الذهب ({gold_grams} جم) لعدم بلوغه 85 جم بنفسه.")
 
-            # 1. على قول المتن (ضم الذهب للفضة بالأجزاء أو القيمة)
-            if (gold_ratio + silver_ratio) >= 1.0:
-                total_val_matn = (gold_grams * gold_price) + (silver_grams * silver_price)
-                matn_res = f"تجب الزكاة بضم أحدهما للآخر، ومقدارها (2.5%) = **{total_val_matn * 0.025:,.2f}**"
-            else:
-                matn_res = "لا تجب الزكاة لأن مجموعهما لم يبلغ نصاباً حتى بعد الضم."
+        if silver_grams >= SILVER_NISAB:
+            sharh_parts.append(f"تجب في الفضة وحدها: **{silver_grams * 0.025:.2f} جرام**")
+        else:
+            sharh_parts.append(f"لا زكاة في الفضة ({silver_grams} جم) لعدم بلوغها 595 جم بنفسها.")
 
-            # 2. على ترجيح الشارح (عدم ضم الذهب للفضة)
-            sharh_parts = []
-            if gold_grams >= GOLD_NISAB:
-                sharh_parts.append(f"تجب في الذهب وحده: **{gold_grams * 0.025:.2f} جرام** (أو قيمته: **{gold_grams * gold_price * 0.025:,.2f}**)")
-            else:
-                sharh_parts.append(f"لا زكاة في الذهب ({gold_grams} جم) لعدم بلوغه 85 جم بنفسه.")
+        st.markdown(f"""
+        <div class="matn-box" style="font-size:1.05rem;">
+            <b>1️⃣ الحكم على قول المتن (المسألة 768 - يضم الذهب إلى الفضة):</b><br>{matn_res}
+        </div>
+        <div class="tarjih-box">
+            <b>2️⃣ الحكم على ترجيح الشارح (ص 508 - لا يضم الذهب إلى الفضة):</b><br>
+            {'<br>'.join(sharh_parts)}
+        </div>
+        """, unsafe_allow_html=True)
 
-            if silver_grams >= SILVER_NISAB:
-                sharh_parts.append(f"تجب في الفضة وحدها: **{silver_grams * 0.025:.2f} جرام** (أو قيمتها: **{silver_grams * silver_price * 0.025:,.2f}**)")
-            else:
-                sharh_parts.append(f"لا زكاة في الفضة ({silver_grams} جم) لعدم بلوغها 595 جم بنفسها.")
-
-            st.markdown(f"""
-            <div class="matn-box" style="font-size:1.05rem;">
-                <b>1️⃣ الحكم على قول المتن (المسألة 768 - يضم الذهب إلى الفضة):</b><br>
-                {matn_res}
-            </div>
-            <div class="tarjih-box">
-                <b>2️⃣ الحكم على ترجيح الشارح (ص 508 - لا يضم الذهب إلى الفضة):</b><br>
-                {'<br>'.join(sharh_parts)}<br>
-                <small><b>العلة:</b> لأنهما جنسان مختلفان يجوز التفاضل بينهما فلا يضم أحدهما للآخر كالبقر مع الغنم، وهذا هو الأقرب.</small>
-            </div>
-            <div class="illa-box">
-                <b>💍 حكم حلي المرأة المدخل ({jewelry_grams} جم) - (المسألة 772، ص 511-514):</b><br>
-                <ul>
-                    <li><b>المعتمد في المتن ورجحه الشارح في أصل المسألة:</b> <b>لا زكاة فيه</b> ما دام مباحاً معداً للبس أو العارية؛ لثبوت ذلك عن خمسة من الصحابة (ابن عمر، جابر، أنس، عائشة، أسماء) ولأنه معد للاستعمال المباح كالثياب.</li>
-                    <li><b>القول الثاني (ذكره الشارح في الهامش والأحوط):</b> وجوب الزكاة فيه إذا بلغ 85 جم وحال عليه الحول = <b>{jewelry_grams * 0.025 if jewelry_grams >= 85 else 0:.2f} جم</b>.</li>
-                    <li><b>تنبيه:</b> إن كان الحلي معداً للأجرة أو للنفقة إذا احتاجوا إليه أو محرماً ففيه الزكاة (ص 510، 515).</li>
-                </ul>
-            </div>
-            """, unsafe_allow_html=True)
-
-    # --- تبويب 4: زكاة عروض التجارة والدين والصداق ---
     with zakat_tabs[3]:
-        st.subheader("زكاة عروض التجارة والديون والصداق (ص 516-522)")
-        t_col1, t_col2 = st.columns(2)
-        with t_col1:
-            trade_goods_val = st.number_input("قيمة عروض التجارة بسعر البيع الحالي عند تمام الحول:", min_value=0.0, value=100000.0, step=5000.0)
-            cash_val = st.number_input("السيولة النقدية المملوكة للتاجر:", min_value=0.0, value=20000.0, step=1000.0)
-            debt_mali_val = st.number_input("ديون لك على مليء باذل (قادر على السداد):", min_value=0.0, value=15000.0, step=1000.0)
-            debt_musir_val = st.number_input("ديون لك على معسر أو مماطل أو جاحد (مقبوضة هذا العام عن 3 سنوات ماضية):", min_value=0.0, value=30000.0, step=1000.0)
-            years_past = st.slider("عدد السنوات التي بقي فيها الدين عند المعسر قبل قبضه:", 1, 10, 3)
+        st.markdown("#### زكاة عروض التجارة والديون والصداق (ص 516-522)")
+        trade_goods_val = st.number_input("قيمة عروض التجارة بسعر البيع الحالي عند تمام الحول:", min_value=0.0, value=100000.0, step=5000.0)
+        cash_val = st.number_input("السيولة النقدية المملوكة للتاجر:", min_value=0.0, value=20000.0, step=1000.0)
+        debt_mali_val = st.number_input("ديون لك على مليء باذل:", min_value=0.0, value=15000.0, step=1000.0)
+        debt_musir_val = st.number_input("ديون مقبوضة هذا العام كانت على معسر أو مماطل:", min_value=0.0, value=30000.0, step=1000.0)
+        years_past = st.slider("عدد السنوات التي بقي فيها الدين عند المعسر:", 1, 10, 3)
 
-        with t_col2:
-            total_active_wealth = trade_goods_val + cash_val + debt_mali_val
-            zakat_active = total_active_wealth * 0.025
+        total_active_wealth = trade_goods_val + cash_val + debt_mali_val
+        zakat_active = total_active_wealth * 0.025
+        zakat_musir_matn = debt_musir_val * 0.025 * years_past
 
-            # حساب الفرق في دين المعسر بين المتن والشارح
-            zakat_musir_matn = debt_musir_val * 0.025 * years_past
-            zakat_musir_sharh = 0.0  # يستأنف به حولاً من يوم قبضه
-
-            st.markdown(f"""
-            <div class="tarjih-box">
-                <h4>🏪 1. زكاة العروض والنقد والدين على المليء:</h4>
-                <p>مجموع الوعاء الزكوي (تضم قيمة العروض إلى النقد لأنها تقوّم به - ص 509): <b>{total_active_wealth:,.2f}</b></p>
-                <p style="font-size:1.3rem; font-weight:bold; color:#fbbf24;">الزكاة الواجبة (2.5%): {zakat_active:,.2f}</p>
-            </div>
-            <div class="matn-box" style="font-size:1.0rem;">
-                <b>2️⃣ زكاة الدين المقبوض من معسر أو جاحد ({debt_musir_val:,.2f} لمدة {years_past} سنوات):</b><br>
-                • <b>على قول المتن (المسألة 777):</b> يزكيه إذا قبضه لما مضى من السنين = <b>{zakat_musir_matn:,.2f}</b><br>
-                • <b>على ترجيح الشارح (ص 517-518):</b> <b>لا زكاة عليه عن السنوات الماضية (0.00)</b>، بل يستأنف به حولاً جديداً من حين قبضه؛ لأنه كان غير مقدور على الانتفاع به، وهذا هو الأقرب.
-            </div>
-            <div class="illa-box">
-                <b>💍 حكم زكاة صداق المرأة (المسألة 775-776، ص 516):</b>
-                <ul>
-                    <li><b>المتن:</b> الصداق في ذمة الزوج كالدين، إلا أن نصفه قبل الدخول لا تجب فيه الزكاة لتعرضه للسقوط بالطلاق قبل الدخول.</li>
-                    <li><b>ترجيح الشارح:</b> لا زكاة على المرأة في صداقها المؤجل الذي في ذمة زوجها مطلقاً حتى تقبضه وتستأنف به حولاً؛ لعدم تمكنها من التصرف فيه.</li>
-                </ul>
-            </div>
-            """, unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class="tarjih-box">
+            <h4>🏪 1. زكاة العروض والنقد والدين على المليء:</h4>
+            <p style="font-size:1.3rem; font-weight:bold; color:#fbbf24;">الزكاة الواجبة (2.5%): {zakat_active:,.2f}</p>
+        </div>
+        <div class="matn-box" style="font-size:1.0rem;">
+            <b>2️⃣ زكاة الدين المقبوض من معسر ({debt_musir_val:,.2f} لمدة {years_past} سنوات):</b><br>
+            • <b>على قول المتن:</b> يزكيه لما مضى من السنين = <b>{zakat_musir_matn:,.2f}</b><br>
+            • <b>على ترجيح الشارح (الأقرب):</b> <b>لا زكاة عليه عن السنوات الماضية (0.00)</b>، بل يستأنف به حولاً جديداً من حين قبضه.
+        </div>
+        """, unsafe_allow_html=True)
